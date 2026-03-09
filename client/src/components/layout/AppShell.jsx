@@ -6,6 +6,14 @@ const NAV_LINKS = [
   { to: '/tickets', label: 'Tickets' },
   { to: '/insights', label: 'Insights' },
   { to: '/content-search', label: 'Content Search' },
+  { label: '──────────', divider: true },
+  { to: '/help-center', label: 'Help Center', exact: true },
+  { to: '/help-center/articles', label: '  Article Audit' },
+  { to: '/help-center/gaps', label: '  Gap Analysis' },
+  { to: '/help-center/improvements', label: '  Improvements' },
+  { to: '/help-center/discoverability', label: '  Discoverability' },
+  { to: '/help-center/freshness', label: '  Freshness' },
+  { label: '──────────', divider: true },
   { to: '/settings', label: 'Settings' },
 ];
 
@@ -18,17 +26,22 @@ export default function AppShell() {
           <span>ZenDesk Analytics</span>
         </div>
         <nav className={styles.nav}>
-          {NAV_LINKS.map((link) => (
-            <NavLink
-              key={link.to}
-              to={link.to}
-              className={({ isActive }) =>
-                `${styles.navLink} ${isActive ? styles.active : ''}`
-              }
-            >
-              {link.label}
-            </NavLink>
-          ))}
+          {NAV_LINKS.map((link, i) =>
+            link.divider ? (
+              <div key={i} style={{ borderTop: '1px solid var(--color-border)', margin: '6px 0', opacity: 0.4 }} />
+            ) : (
+              <NavLink
+                key={link.to}
+                to={link.to}
+                end={link.exact}
+                className={({ isActive }) =>
+                  `${styles.navLink} ${isActive ? styles.active : ''}`
+                }
+              >
+                {link.label}
+              </NavLink>
+            )
+          )}
         </nav>
       </aside>
       <main className={styles.main}>

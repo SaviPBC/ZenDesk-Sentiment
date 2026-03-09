@@ -234,6 +234,7 @@ module.exports = {
   testConnection,
   getCredentials,
   buildClient,
+  requestWithRateLimit,
   fetchTickets,
   fetchTicketComments,
   fetchTicketMetricsBatch,

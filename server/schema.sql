@@ -92,3 +92,87 @@ CREATE TABLE IF NOT EXISTS insights_runs (
   summary TEXT,
   error TEXT
 );
+
+-- Help Center tables
+CREATE TABLE IF NOT EXISTS hc_articles (
+  id INTEGER PRIMARY KEY,
+  title TEXT,
+  body TEXT,
+  url TEXT,
+  section_id INTEGER,
+  section_title TEXT,
+  category_id INTEGER,
+  category_title TEXT,
+  vote_sum INTEGER DEFAULT 0,
+  vote_count INTEGER DEFAULT 0,
+  thumbs_up INTEGER DEFAULT 0,
+  thumbs_down INTEGER DEFAULT 0,
+  label_names TEXT,
+  draft INTEGER DEFAULT 0,
+  locale TEXT,
+  created_at TEXT,
+  updated_at TEXT,
+  edited_at TEXT,
+  synced_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS hc_article_scores (
+  article_id INTEGER PRIMARY KEY,
+  vote_ratio REAL DEFAULT 0,
+  related_ticket_count INTEGER DEFAULT 0,
+  matched_topics TEXT,
+  quality_score REAL DEFAULT 0,
+  flags TEXT,
+  last_scored_at TEXT,
+  FOREIGN KEY (article_id) REFERENCES hc_articles(id)
+);
+
+CREATE TABLE IF NOT EXISTS hc_gaps (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  topic_label TEXT NOT NULL,
+  ticket_count INTEGER DEFAULT 0,
+  related_article_ids TEXT,
+  gap_score REAL DEFAULT 0,
+  suggested_title TEXT,
+  suggested_outline TEXT,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS hc_improvements (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  article_id INTEGER NOT NULL,
+  original_title TEXT,
+  suggested_title TEXT,
+  original_body TEXT,
+  improved_body TEXT,
+  improvement_notes TEXT,
+  status TEXT DEFAULT 'pending',
+  created_at TEXT NOT NULL,
+  reviewed_at TEXT,
+  FOREIGN KEY (article_id) REFERENCES hc_articles(id)
+);
+
+CREATE TABLE IF NOT EXISTS hc_discoverability (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  article_id INTEGER NOT NULL,
+  current_title TEXT,
+  suggested_title TEXT,
+  suggested_labels TEXT,
+  suggested_related_ids TEXT,
+  reasoning TEXT,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (article_id) REFERENCES hc_articles(id)
+);
+
+CREATE TABLE IF NOT EXISTS hc_freshness_alerts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  article_id INTEGER NOT NULL,
+  alert_type TEXT NOT NULL,
+  days_since_updated INTEGER,
+  ticket_spike_count INTEGER,
+  matched_topic TEXT,
+  details TEXT,
+  resolved INTEGER DEFAULT 0,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (article_id) REFERENCES hc_articles(id)
+);

@@ -2,13 +2,13 @@
 
 ## Project Overview
 
-A full-stack analytics dashboard for ZenDesk support data. Syncs tickets from ZenDesk, runs AI-powered sentiment analysis and topic clustering using Claude, and presents metrics through an interactive dashboard. Features include CSAT tracking, business-hour-adjusted performance metrics, natural language content search, and deep insights reports.
+A full-stack analytics dashboard for ZenDesk support data. Syncs tickets from ZenDesk, runs AI-powered sentiment analysis and topic clustering using Claude, and presents metrics through an interactive dashboard. Features include CSAT tracking, business-hour-adjusted performance metrics, natural language content search, deep insights reports, and a full Help Center Agent suite for improving article quality and reducing support contact rates.
 
 ## Stack
 
 - **Frontend:** React 18 + Vite, React Router v6, TanStack React Query, Recharts, Axios
 - **Backend:** Express.js, SQLite (`node-sqlite3-wasm` — pure WASM, no native build), Anthropic SDK (`@anthropic-ai/sdk`)
-- **AI:** Claude Haiku (sentiment, topic clustering, AI search), Claude Sonnet (insights synthesis)
+- **AI:** Claude Haiku (sentiment, topic clustering, AI search, discoverability), Claude Sonnet (insights synthesis, gap analysis, article improvement)
 - **Other:** `sentiment` npm package (local AFINN-based fallback if no Anthropic key)
 
 ## Running the App
@@ -59,28 +59,43 @@ zendesk-analytics/
 │   │   ├── tickets.js        # Paginated ticket listing
 │   │   ├── csat.js           # CSAT metrics + trend
 │   │   ├── insights.js       # Insights analysis runs
-│   │   └── search.js         # Text + AI content search
+│   │   ├── search.js         # Text + AI content search
+│   │   └── helpCenter.js     # All Help Center agent endpoints
 │   ├── services/
-│   │   ├── syncService.js    # 6-phase ZenDesk sync pipeline
-│   │   ├── zendeskClient.js  # ZenDesk API client (rate-limit handling)
-│   │   ├── analysisService.js # Sentiment + topic clustering (Claude)
-│   │   └── insightsService.js # Insights batch processing (Claude)
+│   │   ├── syncService.js          # 6-phase ZenDesk sync pipeline
+│   │   ├── zendeskClient.js        # ZenDesk API client (rate-limit handling)
+│   │   ├── analysisService.js      # Sentiment + topic clustering (Claude)
+│   │   ├── insightsService.js      # Insights batch processing (Claude)
+│   │   ├── guideService.js         # Zendesk Guide API client (articles, publish)
+│   │   ├── contentAuditService.js  # HC sync + article quality scoring
+│   │   ├── gapAnalysisService.js   # Topic-to-article gap detection (Claude Sonnet)
+│   │   ├── articleImprovementService.js # AI article rewrite + publish (Claude Sonnet)
+│   │   ├── discoverabilityService.js    # Title/label suggestions (Claude Haiku)
+│   │   └── freshnessService.js     # Stale article + ticket spike detection
 │   ├── middleware/
 │   │   └── errorHandler.js
 │   └── data/                 # SQLite DB stored here (gitignored)
 └── client/
     └── src/
         ├── pages/
-        │   ├── Dashboard.jsx       # Main analytics dashboard
-        │   ├── Tickets.jsx         # Paginated ticket browser
-        │   ├── Insights.jsx        # AI insights analysis
-        │   ├── ContentSearch.jsx   # Text + AI search
-        │   └── Settings.jsx        # Config + sync controls
+        │   ├── Dashboard.jsx              # Main analytics dashboard
+        │   ├── Tickets.jsx                # Paginated ticket browser
+        │   ├── Insights.jsx               # AI insights analysis
+        │   ├── ContentSearch.jsx          # Text + AI search
+        │   ├── Settings.jsx               # Config + sync controls
+        │   ├── HelpCenter.jsx             # Help Center overview + agent launcher
+        │   ├── HelpCenterArticles.jsx     # Article audit table with quality scores
+        │   ├── HelpCenterGaps.jsx         # Gap analysis results
+        │   ├── HelpCenterImprovements.jsx # AI improvement review + publish queue
+        │   ├── HelpCenterDiscoverability.jsx # Title/label suggestions
+        │   └── HelpCenterFreshness.jsx    # Freshness alerts
         ├── components/
         │   ├── dashboard/          # Charts and metric cards
         │   ├── layout/AppShell.jsx # Nav sidebar + layout
         │   └── shared/             # DateRangePicker, SentimentBadge, SyncButton
-        ├── hooks/                  # TanStack Query data hooks
+        ├── hooks/
+        │   ├── useHelpCenter.js    # All Help Center TanStack Query hooks
+        │   └── ...                 # Existing hooks
         └── api/client.js           # Axios instance
 ```
 
@@ -97,6 +112,12 @@ zendesk-analytics/
 | `sentiment_results` | Claude sentiment output per ticket (positive/neutral/negative + confidence) |
 | `topic_clusters` | Topic clusters per sync run (label, ticket count, example IDs) |
 | `insights_runs` | Full insights analysis results (summary, themes, recommendations) |
+| `hc_articles` | Synced Help Center articles (title, body, votes, section, category, labels) |
+| `hc_article_scores` | Quality scores per article (vote ratio, ticket volume, freshness, flags) |
+| `hc_gaps` | Content gap results (topic, ticket count, suggested title + outline) |
+| `hc_improvements` | AI-generated article rewrites (pending/approved/rejected/published) |
+| `hc_discoverability` | Title/label improvement suggestions per article |
+| `hc_freshness_alerts` | Stale and ticket-spike alerts per article |
 
 ## Key API Endpoints
 
@@ -113,6 +134,42 @@ zendesk-analytics/
 | `GET` | `/api/insights/:id` | Full results for an insights run |
 | `POST` | `/api/insights` | Trigger new insights analysis (`{ date_from, date_to, channel? }`) |
 | `POST` | `/api/content-search` | Search tickets (`{ from, to, query, mode: 'text'|'ai' }`) |
+
+## Help Center Agents
+
+Five AI agents accessible under the **Help Center** nav section. Run them in order:
+
+### 1. Content Audit Agent (`contentAuditService.js`)
+- **Sync:** `POST /api/help-center/sync` — pulls all published articles from Zendesk Guide
+- **Audit:** `POST /api/help-center/audit` — scores every article (0–100) based on vote ratio, related ticket volume, and freshness. Flags: `low_vote_ratio`, `no_votes`, `stale`, `high_ticket_volume`
+- **View:** `GET /api/help-center/articles` — paginated, filterable by flag or search term
+
+### 2. Gap Analysis Agent (`gapAnalysisService.js`)
+- **Run:** `POST /api/help-center/gap-analysis` — cross-references ticket topics against article titles using Claude Sonnet. Falls back to clustering raw ticket subjects if no prior topic sync exists.
+- **View:** `GET /api/help-center/gaps` — gaps sorted by score (highest volume first), each with suggested title and outline
+
+### 3. Article Improvement Agent (`articleImprovementService.js`)
+- **Generate:** `POST /api/help-center/articles/:id/improve` — Claude Sonnet rewrites the article using related support tickets as context for what users are confused about
+- **Review:** `GET /api/help-center/improvements` — list all rewrites (pending/approved/rejected/published)
+- **Approve/Reject:** `PUT /api/help-center/improvements/:id` — human review step
+- **Publish:** `POST /api/help-center/improvements/:id/publish` — pushes approved rewrite live via Guide Translations API
+
+### 4. Discoverability Agent (`discoverabilityService.js`)
+- **Run:** `POST /api/help-center/discoverability` — Claude Haiku analyzes article titles against ticket subject phrasing; suggests better titles, additional labels, and related article links
+- **View:** `GET /api/help-center/discoverability`
+
+### 5. Freshness Monitor (`freshnessService.js`)
+- **Run:** `POST /api/help-center/freshness/run` — flags articles not updated within threshold (default 180 days) and articles where recent ticket volume suggests outdated content
+- **View:** `GET /api/help-center/freshness` — open alerts; `?resolved=1` for resolved
+- **Resolve:** `PUT /api/help-center/freshness/:id/resolve`
+- **Overview stats:** `GET /api/help-center/overview`
+
+### Help Center Workflow
+1. Sync articles → Run Audit → fix flagged articles using Improve button
+2. Run Gap Analysis → create new articles for top gaps
+3. Run Discoverability → update titles/labels in Zendesk Guide
+4. Run Freshness → resolve stale alerts by updating or archiving old articles
+5. Re-run Audit periodically to track quality score trends
 
 ## ZenDesk Sync Pipeline
 

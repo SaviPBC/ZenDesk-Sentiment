@@ -16,6 +16,7 @@ app.use('/api/tickets', require('./routes/tickets'));
 app.use('/api/csat', require('./routes/csat'));
 app.use('/api/insights', require('./routes/insights'));
 app.use('/api/content-search', require('./routes/search'));
+app.use('/api/help-center', require('./routes/helpCenter'));
 
 app.use(errorHandler);
 
