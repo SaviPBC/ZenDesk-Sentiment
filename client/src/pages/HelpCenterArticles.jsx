@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useHcArticles, useStartAudit, useAuditStatus, useGenerateImprovement } from '../hooks/useHelpCenter';
 
 const FLAG_LABELS = {
@@ -37,6 +37,9 @@ export default function HelpCenterArticles() {
   const [search, setSearch] = useState('');
   const [flagFilter, setFlagFilter] = useState('');
   const [generatingId, setGeneratingId] = useState(null);
+  const [improveModal, setImproveModal] = useState(null); // { id, title }
+  const [referenceUrl, setReferenceUrl] = useState('');
+  const urlInputRef = useRef(null);
 
   const { data, isLoading } = useHcArticles({ page, limit: 25, search: search || undefined, flag: flagFilter || undefined });
   const auditStatus = useAuditStatus();
@@ -47,15 +50,24 @@ export default function HelpCenterArticles() {
   const articles = data?.articles || [];
   const total = data?.total || 0;
 
-  async function handleImprove(articleId) {
-    setGeneratingId(articleId);
+  function openImproveModal(article) {
+    setReferenceUrl('');
+    setImproveModal({ id: article.id, title: article.title });
+    setTimeout(() => urlInputRef.current?.focus(), 50);
+  }
+
+  async function handleImprove() {
+    const { id } = improveModal;
+    setImproveModal(null);
+    setGeneratingId(id);
     try {
-      await generateImprovement.mutateAsync(articleId);
+      await generateImprovement.mutateAsync({ articleId: id, referenceUrl: referenceUrl.trim() || null });
       alert('Improvement generated! Check the Improvements page to review and publish.');
     } catch (err) {
       alert('Error: ' + (err.response?.data?.error || err.message));
     } finally {
       setGeneratingId(null);
+      setReferenceUrl('');
     }
   }
 
@@ -152,7 +164,7 @@ export default function HelpCenterArticles() {
                   </td>
                   <td style={{ padding: '10px 16px', textAlign: 'center' }}>
                     <button
-                      onClick={() => handleImprove(a.id)}
+                      onClick={() => openImproveModal(a)}
                       disabled={generatingId === a.id}
                       style={{
                         padding: '5px 12px', borderRadius: 5, border: '1px solid var(--color-border)',
@@ -187,6 +199,67 @@ export default function HelpCenterArticles() {
             style={{ padding: '6px 16px', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text)', cursor: 'pointer' }}>
             Next
           </button>
+        </div>
+      )}
+
+      {/* Improve modal */}
+      {improveModal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+        }}>
+          <div style={{
+            background: 'var(--color-surface)', border: '1px solid var(--color-border)',
+            borderRadius: 10, padding: 28, maxWidth: 520, width: '100%',
+          }}>
+            <h2 style={{ fontSize: 17, fontWeight: 700, marginBottom: 6 }}>Improve Article</h2>
+            <p style={{ fontSize: 13, color: 'var(--color-muted)', marginBottom: 20, lineHeight: 1.5 }}>
+              <strong>{improveModal.title}</strong>
+            </p>
+
+            <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 6 }}>
+              Reference URL <span style={{ color: 'var(--color-muted)', fontWeight: 400 }}>(optional)</span>
+            </label>
+            <p style={{ fontSize: 12, color: 'var(--color-muted)', marginBottom: 8, lineHeight: 1.5 }}>
+              Paste a link to your product docs, changelog, or any page with accurate current information.
+              Claude will use it as the authoritative source when rewriting.
+            </p>
+            <input
+              ref={urlInputRef}
+              type="url"
+              value={referenceUrl}
+              onChange={(e) => setReferenceUrl(e.target.value)}
+              placeholder="https://docs.yourproduct.com/feature-name"
+              onKeyDown={(e) => e.key === 'Enter' && handleImprove()}
+              style={{
+                width: '100%', padding: '9px 12px', borderRadius: 6,
+                border: '1px solid var(--color-border)', background: 'var(--color-surface)',
+                color: 'var(--color-text)', fontSize: 13, boxSizing: 'border-box',
+              }}
+            />
+
+            <div style={{ display: 'flex', gap: 10, marginTop: 20, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setImproveModal(null)}
+                style={{
+                  padding: '8px 18px', borderRadius: 6, border: '1px solid var(--color-border)',
+                  background: 'transparent', color: 'var(--color-text)', cursor: 'pointer', fontSize: 13,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleImprove}
+                style={{
+                  padding: '8px 18px', borderRadius: 6, border: 'none',
+                  background: 'var(--color-primary)', color: '#fff', cursor: 'pointer',
+                  fontSize: 13, fontWeight: 500,
+                }}
+              >
+                Generate Improvement
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

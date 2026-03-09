@@ -111,7 +111,8 @@ export function useHcImprovement(id) {
 export function useGenerateImprovement() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (articleId) => client.post(`/help-center/articles/${articleId}/improve`).then((r) => r.data),
+    mutationFn: ({ articleId, referenceUrl }) =>
+      client.post(`/help-center/articles/${articleId}/improve`, { reference_url: referenceUrl || undefined }).then((r) => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['hc-improvements'] });
       qc.invalidateQueries({ queryKey: ['hc-overview'] });

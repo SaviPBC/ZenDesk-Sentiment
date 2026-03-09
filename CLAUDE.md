@@ -135,42 +135,6 @@ zendesk-analytics/
 | `POST` | `/api/insights` | Trigger new insights analysis (`{ date_from, date_to, channel? }`) |
 | `POST` | `/api/content-search` | Search tickets (`{ from, to, query, mode: 'text'|'ai' }`) |
 
-## Help Center Agents
-
-Five AI agents accessible under the **Help Center** nav section. Run them in order:
-
-### 1. Content Audit Agent (`contentAuditService.js`)
-- **Sync:** `POST /api/help-center/sync` — pulls all published articles from Zendesk Guide
-- **Audit:** `POST /api/help-center/audit` — scores every article (0–100) based on vote ratio, related ticket volume, and freshness. Flags: `low_vote_ratio`, `no_votes`, `stale`, `high_ticket_volume`
-- **View:** `GET /api/help-center/articles` — paginated, filterable by flag or search term
-
-### 2. Gap Analysis Agent (`gapAnalysisService.js`)
-- **Run:** `POST /api/help-center/gap-analysis` — cross-references ticket topics against article titles using Claude Sonnet. Falls back to clustering raw ticket subjects if no prior topic sync exists.
-- **View:** `GET /api/help-center/gaps` — gaps sorted by score (highest volume first), each with suggested title and outline
-
-### 3. Article Improvement Agent (`articleImprovementService.js`)
-- **Generate:** `POST /api/help-center/articles/:id/improve` — Claude Sonnet rewrites the article using related support tickets as context for what users are confused about
-- **Review:** `GET /api/help-center/improvements` — list all rewrites (pending/approved/rejected/published)
-- **Approve/Reject:** `PUT /api/help-center/improvements/:id` — human review step
-- **Publish:** `POST /api/help-center/improvements/:id/publish` — pushes approved rewrite live via Guide Translations API
-
-### 4. Discoverability Agent (`discoverabilityService.js`)
-- **Run:** `POST /api/help-center/discoverability` — Claude Haiku analyzes article titles against ticket subject phrasing; suggests better titles, additional labels, and related article links
-- **View:** `GET /api/help-center/discoverability`
-
-### 5. Freshness Monitor (`freshnessService.js`)
-- **Run:** `POST /api/help-center/freshness/run` — flags articles not updated within threshold (default 180 days) and articles where recent ticket volume suggests outdated content
-- **View:** `GET /api/help-center/freshness` — open alerts; `?resolved=1` for resolved
-- **Resolve:** `PUT /api/help-center/freshness/:id/resolve`
-- **Overview stats:** `GET /api/help-center/overview`
-
-### Help Center Workflow
-1. Sync articles → Run Audit → fix flagged articles using Improve button
-2. Run Gap Analysis → create new articles for top gaps
-3. Run Discoverability → update titles/labels in Zendesk Guide
-4. Run Freshness → resolve stale alerts by updating or archiving old articles
-5. Re-run Audit periodically to track quality score trends
-
 ## ZenDesk Sync Pipeline
 
 The sync runs in 6 sequential phases (`syncService.js`):
@@ -217,6 +181,45 @@ Resolution time and first reply time are adjusted for business hours (`dashboard
 - Configurable start/end hour, work days (day-of-week), and IANA timezone
 - Handles DST correctly
 - Default: Mon–Fri, 9am–5pm UTC
+
+## Help Center Agents
+
+Five AI agents accessible under the **Help Center** nav section. Run them in order:
+
+### 1. Content Audit Agent (`contentAuditService.js`)
+- **Sync:** `POST /api/help-center/sync` — pulls all published articles from Zendesk Guide
+- **Audit:** `POST /api/help-center/audit` — scores every article (0–100) based on vote ratio, related ticket volume, and freshness. Flags: `low_vote_ratio`, `no_votes`, `stale`, `high_ticket_volume`
+- **View:** `GET /api/help-center/articles` — paginated, filterable by flag or search term
+
+### 2. Gap Analysis Agent (`gapAnalysisService.js`)
+- **Run:** `POST /api/help-center/gap-analysis` — cross-references ticket topics against article titles using Claude Sonnet. Falls back to clustering raw ticket subjects if no prior topic sync exists.
+- **View:** `GET /api/help-center/gaps` — gaps sorted by score (highest volume first), each with suggested title and outline
+
+### 3. Article Improvement Agent (`articleImprovementService.js`)
+- **Generate:** `POST /api/help-center/articles/:id/improve` — Claude Sonnet rewrites the article using related support tickets as context. Accepts an optional `reference_url` in the request body; if provided, the server fetches and strips that page's text and passes it to Claude as the authoritative source for facts and accuracy.
+- **Review:** `GET /api/help-center/improvements` — list all rewrites (pending/approved/rejected/published)
+- **Approve/Reject:** `PUT /api/help-center/improvements/:id` — human review step
+- **Publish:** `POST /api/help-center/improvements/:id/publish` — pushes approved rewrite live via Guide Translations API
+
+#### Reference URL feature
+When clicking "Improve" on any article, a modal prompts for an optional reference URL (product docs, changelog, any public page). The server fetches the page with `axios`, strips HTML tags to plain text (max 8,000 chars), and injects it into the Claude prompt as the authoritative source. If the URL is unreachable, Claude proceeds without it and notes the failure. Only publicly accessible URLs work — auth-gated pages will fail silently.
+
+### 4. Discoverability Agent (`discoverabilityService.js`)
+- **Run:** `POST /api/help-center/discoverability` — Claude Haiku analyzes article titles against ticket subject phrasing; suggests better titles, additional labels, and related article links. Processes in batches of 10 articles.
+- **View:** `GET /api/help-center/discoverability`
+
+### 5. Freshness Monitor (`freshnessService.js`)
+- **Run:** `POST /api/help-center/freshness/run` — flags articles not updated within threshold (default 180 days) and articles where recent ticket volume suggests outdated content
+- **View:** `GET /api/help-center/freshness` — open alerts; `?resolved=1` for resolved
+- **Resolve:** `PUT /api/help-center/freshness/:id/resolve`
+- **Overview stats:** `GET /api/help-center/overview`
+
+### Help Center Workflow
+1. Sync articles → Run Audit → fix flagged articles using Improve button (optionally paste a reference URL)
+2. Run Gap Analysis → create new articles for top gaps
+3. Run Discoverability → update titles/labels in Zendesk Guide
+4. Run Freshness → resolve stale alerts by updating or archiving old articles
+5. Re-run Audit periodically to track quality score trends
 
 ## Important Implementation Notes
 

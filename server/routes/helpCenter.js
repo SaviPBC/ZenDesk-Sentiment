@@ -113,7 +113,8 @@ router.get('/gaps', (req, res) => {
 
 router.post('/articles/:id/improve', async (req, res, next) => {
   try {
-    const improvement = await generateImprovement(parseInt(req.params.id));
+    const { reference_url } = req.body;
+    const improvement = await generateImprovement(parseInt(req.params.id), reference_url || null);
     res.json(improvement);
   } catch (err) {
     next(err);
